@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Local Translator",
+  "description": "Минималистичное Chrome-расширение для локального перевода через Chrome Built-in AI Translator API.",
+  "version": "0.1.0",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "invoke-translation": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Open translation for selected text"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "32": "icon32.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  },
+  "permissions": ["storage", "tabs"],
+  "action": {
+    "default_icon": {
+      "16": "icon16.png",
+      "32": "icon32.png"
+    },
+    "default_title": "Local Translator",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html"
+}
