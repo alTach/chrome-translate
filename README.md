@@ -1,40 +1,51 @@
-# Local Translator
+# Svelte + Vite + CRXJS
 
-Минималистичное Chrome-расширение на `Svelte 5` и `Tailwind CSS 4` для локального перевода через `Chrome Built-in AI Translator API`.
+This template helps you quickly start developing Chrome extensions with Svelte and Vite. It includes the CRXJS Vite plugin for seamless Chrome extension development.
 
-Проект собирается как полностью статический `MPA` через `Vite`: на выходе получаются готовые `html/js/css` файлы без сервера и без SSR. Для этого в конфиге включены `appType: 'mpa'` и относительный `base`.
+## Features
 
-## Что внутри
+- Svelte with component syntax
+- Vite build tool
+- CRXJS Vite plugin integration
+- Chrome extension manifest configuration
 
-- popup с локальным переводом и отдельным экраном результата
-- индикатор загрузки модели под полем ввода
-- история последних 5 переводов
-- страница настроек с выбором языка и локальной формой обратной связи
-- локальное хранение через `chrome.storage`
+## Quick Start
 
-## Требования
-
-- `Chrome 138+`
-- только desktop Chrome
-- при первом переводе Chrome может скачать языковые модели локально
-
-## Запуск
+1. Install dependencies:
 
 ```bash
 npm install
+```
+
+2. Start development server:
+
+```bash
+npm run dev
+```
+
+3. Open Chrome and navigate to `chrome://extensions/`, enable "Developer mode", and load the unpacked extension from the `dist` directory.
+
+4. Build for production:
+
+```bash
 npm run build
 ```
 
-## Загрузка в Chrome
+## Project Structure
 
-1. Откройте `chrome://extensions`
-2. Включите `Developer mode`
-3. Нажмите `Load unpacked`
-4. Выберите папку `dist`
+- `src/popup/` - Extension popup UI
+- `src/content/` - Content scripts
+- `manifest.config.js` - Chrome extension manifest configuration
 
-## Структура
+## Chrome Extension Development Notes
 
-- `src/popup` — popup расширения
-- `src/options` — страница настроек
-- `src/lib` — хранение, API и общие компоненты
-- `public/manifest.json` — manifest Chrome Extension
+- Use `manifest.config.js` to configure your extension
+- The CRXJS plugin automatically handles manifest generation
+- Content scripts should be placed in `src/content/`
+- Popup UI should be placed in `src/popup/`
+
+## Documentation
+
+- [Svelte Documentation](https://svelte.dev/)
+- [Vite Documentation](https://vitejs.dev/)
+- [CRXJS Documentation](https://crxjs.dev/vite-plugin)

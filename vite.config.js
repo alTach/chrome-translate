@@ -1,24 +1,35 @@
-import { defineConfig } from 'vite';
-import { svelte } from '@sveltejs/vite-plugin-svelte';
-import tailwindcss from '@tailwindcss/vite';
+import path from 'node:path'
+import { crx } from '@crxjs/vite-plugin'
+import { svelte } from '@sveltejs/vite-plugin-svelte'
+import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from 'vite'
+import zip from 'vite-plugin-zip-pack'
+import manifest from './manifest.config.js'
+import { name, version } from './package.json'
 
 export default defineConfig({
-  appType: 'mpa',
-  base: './',
-  plugins: [tailwindcss(), svelte()],
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-    rollupOptions: {
-      output: {
-        entryFileNames: 'assets/[name].js',
-        chunkFileNames: 'assets/[name].js',
-        assetFileNames: 'assets/[name][extname]'
-      },
-      input: {
-        popup: 'popup.html',
-        options: 'options.html'
-      }
-    }
-  }
-});
+  resolve: {
+    alias: {
+      '@': `${path.resolve(__dirname, 'src')}`,
+    },
+  },
+  plugins: [
+    svelte(),
+    tailwindcss(),
+    crx({ manifest }),
+    zip({ outDir: 'release', outFileName: `crx-${name}-${version}.zip` }),
+  ],
+  server: {
+    host: '127.0.0.1',
+    port: 4173,
+    cors: {
+      origin: [
+        /chrome-extension:\/\//,
+      ],
+    },
+  },
+  preview: {
+    host: '127.0.0.1',
+    port: 4173,
+  },
+})

@@ -1,18 +1,18 @@
 chrome.commands.onCommand.addListener(async (command) => {
   if (command !== 'invoke-translation') {
-    return;
+    return
   }
 
   const [tab] = await chrome.tabs.query({
     active: true,
     currentWindow: true
-  });
+  })
 
   if (!tab?.id) {
-    return;
+    return
   }
 
   try {
-    await chrome.tabs.sendMessage(tab.id, { type: 'invoke-translation' });
+    await chrome.tabs.sendMessage(tab.id, { type: 'invoke-translation' })
   } catch {}
-});
+})

@@ -1,27 +1,23 @@
 {
-  "name": "chrome-native-translate",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Минималистичное Chrome-расширение на `Svelte 5` и `Tailwind CSS 4` для локального перевода через `Chrome Built-in AI Translator API`.",
-  "license": "ISC",
-  "author": "",
+  "name": "chrome-translate",
   "type": "module",
-  "main": "vite.config.js",
-  "directories": {
-    "doc": "docs"
-  },
+  "version": "1.0.0",
+  "private": true,
   "scripts": {
     "dev": "vite",
+    "serve": "vite --host 127.0.0.1 --port 4173",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
-    "svelte": "5.38.7"
+    "svelte": "^5.53.12"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "6.2.0",
-    "@tailwindcss/vite": "4.1.13",
-    "tailwindcss": "4.1.13",
-    "vite": "7.1.5"
+    "@crxjs/vite-plugin": "^2.4.0",
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@tailwindcss/vite": "^4.3.0",
+    "@types/chrome": "^0.1.37",
+    "vite": "^8.0.0",
+    "vite-plugin-zip-pack": "^1.2.4"
   }
 }
