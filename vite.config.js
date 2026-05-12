@@ -21,7 +21,9 @@ export default defineConfig({
   ],
   server: {
     host: '127.0.0.1',
-    port: 4173,
+    port: 5173,
+    strictPort: true,
+    open: '/index.html',
     cors: {
       origin: [
         /chrome-extension:\/\//,

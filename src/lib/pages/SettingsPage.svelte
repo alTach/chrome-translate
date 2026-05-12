@@ -1,6 +1,28 @@
 <script>
   import LanguageSelect from '@/lib/components/LanguageSelect.svelte'
 
+  let shortcutFocused = false
+
+  function normalizeShortcutKey(value) {
+    if (typeof value === 'string' && /^[a-z]$/i.test(value)) {
+      return value.toLowerCase()
+    }
+
+    return ''
+  }
+
+  function handleShortcutKeydown(event) {
+    const nextKey = normalizeShortcutKey(event.key)
+
+    if (!nextKey) {
+      return
+    }
+
+    event.preventDefault()
+    settings.shortcutKey = nextKey
+    onSettingsChange()
+  }
+
   export let labels
   export let settings
   export let targetLanguages = []
@@ -10,7 +32,7 @@
   export let onSettingsChange = () => {}
 </script>
 
-<div class="stack">
+<div class="app-stack-lg">
   <LanguageSelect
     label={labels.targetLanguage}
     options={targetLanguages}
@@ -24,66 +46,29 @@
     on:change={onSettingsChange}
   />
 
-  <div class="field">
-    <span>{labels.shortcut}</span>
-    <div class="shortcut">
+  <div class="app-field">
+    <span class="app-label">{labels.shortcut}</span>
+    <div
+      class="shortcut-button"
+      type="button"
+      on:focus={() => {
+        shortcutFocused = true
+      }}
+      on:blur={() => {
+        shortcutFocused = false
+      }}
+      on:keydown={handleShortcutKeydown}
+    >
       <span>Alt + Shift +</span>
-      <span class="key">{(settings.shortcutKey || 's').toUpperCase()}</span>
+      <button class:shortcut-key--active={shortcutFocused} class="shortcut-key">
+        {(settings.shortcutKey || 's').toUpperCase()}
+      </button>
     </div>
   </div>
 
   {#if showFeedbackLink}
-    <div class="footer">
-      <button class="link" type="button" on:click={() => onNavigate('feedback')}>{labels.feedback}</button>
+    <div class="app-footer">
+      <button class="btn-link" type="button" on:click={() => onNavigate('feedback')}>{labels.feedback}</button>
     </div>
   {/if}
 </div>
-
-<style>
-  .stack {
-    display: grid;
-    gap: 16px;
-    padding: 18px;
-  }
-
-  .field {
-    display: grid;
-    gap: 8px;
-  }
-
-  .field > span {
-    color: var(--muted);
-    font-size: 12px;
-  }
-
-  .shortcut {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--muted);
-  }
-
-  .key {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border: 1px solid var(--line);
-    color: var(--text);
-  }
-
-  .footer {
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .link {
-    border: 0;
-    background: transparent;
-    color: var(--muted);
-    padding: 0;
-    font: inherit;
-    cursor: pointer;
-  }
-</style>

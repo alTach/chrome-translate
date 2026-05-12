@@ -15,4 +15,8 @@ chrome.commands.onCommand.addListener(async (command) => {
   try {
     await chrome.tabs.sendMessage(tab.id, { type: 'invoke-translation' })
   } catch {}
+
+  try {
+    await chrome.action.openPopup()
+  } catch {}
 })

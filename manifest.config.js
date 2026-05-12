@@ -39,6 +39,12 @@ export default defineManifest({
       run_at: 'document_idle',
     },
   ],
+  web_accessible_resources: [
+    {
+      resources: ['public/logo.png'],
+      matches: ['<all_urls>'],
+    },
+  ],
   options_page: 'src/options/index.html',
   permissions: [
     'storage',

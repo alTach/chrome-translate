@@ -1,5 +1,17 @@
+import { fallbackSourceLanguage, normalizeLanguageCode } from '@/trash/language.js'
+import { normalizeLineEndings } from '@/trash/text.js'
+import { TRANSLATOR_MESSAGES } from '@/trash/translator/messages.js'
+
 const translatorCache = new Map()
 let detectorPromise
+
+function ensureActive(signal) {
+  if (signal?.aborted) {
+    const error = new Error('Request aborted')
+    error.name = 'AbortError'
+    throw error
+  }
+}
 
 function hasTranslatorApi() {
   return typeof self !== 'undefined' && 'Translator' in self
@@ -7,42 +19,6 @@ function hasTranslatorApi() {
 
 function hasLanguageDetectorApi() {
   return typeof self !== 'undefined' && 'LanguageDetector' in self
-}
-
-function normalizeLanguageCode(code) {
-  if (!code) {
-    return 'en'
-  }
-
-  if (code === 'he') {
-    return 'iw'
-  }
-
-  return code
-}
-
-function fallbackSourceLanguage(text) {
-  if (/[\u0400-\u04FF]/.test(text)) {
-    return 'ru'
-  }
-
-  if (/[\u3040-\u30ff\u31f0-\u31ff]/.test(text)) {
-    return 'ja'
-  }
-
-  if (/[\uac00-\ud7af]/.test(text)) {
-    return 'ko'
-  }
-
-  if (/[\u4e00-\u9fff]/.test(text)) {
-    return 'zh'
-  }
-
-  if (/[a-z]/i.test(text)) {
-    return 'en'
-  }
-
-  return normalizeLanguageCode(navigator.language?.split('-')[0]) || 'en'
 }
 
 async function getDetector(onProgress) {
@@ -83,7 +59,7 @@ export async function detectSourceLanguage(text, onProgress) {
   return fallbackSourceLanguage(text)
 }
 
-async function getTranslator({ sourceLanguage, targetLanguage, onProgress }) {
+async function getTranslator({ sourceLanguage, targetLanguage, onProgress, signal }) {
   const cacheKey = `${sourceLanguage}:${targetLanguage}`
 
   if (!translatorCache.has(cacheKey)) {
@@ -107,6 +83,7 @@ async function getTranslator({ sourceLanguage, targetLanguage, onProgress }) {
     )
   }
 
+  ensureActive(signal)
   return await translatorCache.get(cacheKey)
 }
 
@@ -114,16 +91,20 @@ export async function translateText({
   text,
   sourceLanguage,
   targetLanguage,
-  onProgress
+  onProgress,
+  signal
 }) {
+  ensureActive(signal)
+
   if (!hasTranslatorApi()) {
-    throw new Error('Нужен Chrome 138+ на компьютере с поддержкой Built-in AI Translator API.')
+    throw new Error(TRANSLATOR_MESSAGES.unsupportedBrowser)
   }
 
   const normalizedSourceLanguage = normalizeLanguageCode(
     sourceLanguage || (await detectSourceLanguage(text, onProgress))
   )
   const normalizedTargetLanguage = normalizeLanguageCode(targetLanguage)
+  ensureActive(signal)
 
   if (normalizedSourceLanguage === normalizedTargetLanguage) {
     return {
@@ -137,22 +118,83 @@ export async function translateText({
     sourceLanguage: normalizedSourceLanguage,
     targetLanguage: normalizedTargetLanguage
   })
+  ensureActive(signal)
 
   if (availability === 'unavailable') {
-    throw new Error('Эта языковая пара пока не поддерживается встроенным переводчиком Chrome.')
+    throw new Error(TRANSLATOR_MESSAGES.pairUnavailable)
   }
 
   const translator = await getTranslator({
     sourceLanguage: normalizedSourceLanguage,
     targetLanguage: normalizedTargetLanguage,
-    onProgress
+    onProgress,
+    signal
   })
+  ensureActive(signal)
 
   const translatedText = await translator.translate(text)
+  ensureActive(signal)
 
   return {
     translatedText,
     sourceLanguage: normalizedSourceLanguage,
     targetLanguage: normalizedTargetLanguage
+  }
+}
+
+export async function translateTextPreservingFormat({
+  text,
+  sourceLanguage,
+  targetLanguage,
+  onProgress,
+  signal
+}) {
+  const normalizedText = normalizeLineEndings(text)
+  const segments = normalizedText.split(/(\n+)/)
+
+  if (segments.length === 1) {
+    return translateText({
+      text: normalizedText,
+      sourceLanguage,
+      targetLanguage,
+      onProgress,
+      signal
+    })
+  }
+
+  const translatedSegments = []
+  let resolvedSourceLanguage = sourceLanguage
+  let resolvedTargetLanguage = targetLanguage
+
+  for (const segment of segments) {
+    ensureActive(signal)
+
+    if (/^\n+$/.test(segment)) {
+      translatedSegments.push(segment)
+      continue
+    }
+
+    if (!segment.trim()) {
+      translatedSegments.push(segment)
+      continue
+    }
+
+    const result = await translateText({
+      text: segment,
+      sourceLanguage: resolvedSourceLanguage,
+      targetLanguage: resolvedTargetLanguage,
+      onProgress,
+      signal
+    })
+
+    resolvedSourceLanguage = result.sourceLanguage
+    resolvedTargetLanguage = result.targetLanguage
+    translatedSegments.push(result.translatedText)
+  }
+
+  return {
+    translatedText: translatedSegments.join(''),
+    sourceLanguage: resolvedSourceLanguage,
+    targetLanguage: resolvedTargetLanguage
   }
 }

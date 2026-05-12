@@ -10,43 +10,42 @@
   export let interfaceLanguages = []
   export let statusText = ''
   export let statusType = 'default'
-  export let onSave = () => {}
+  export let sendLabel = 'Отправить'
+  export let onSettingsChange = () => {}
+  export let onDraftChange = () => {}
+  export let onSend = () => {}
   export let onCopy = () => {}
-  export let onMail = () => {}
 </script>
 
-<div class="stack">
-  <div class="section">
-    <LanguageSelect label={labels.defaultTargetLanguage} options={targetLanguages} bind:value={settings.targetLanguage} />
+<div>
+  <div class="app-section">
+    <LanguageSelect
+      label={labels.defaultTargetLanguage}
+      options={targetLanguages}
+      bind:value={settings.targetLanguage}
+      on:change={onSettingsChange}
+    />
   </div>
 
-  <div class="section">
-    <LanguageSelect label={labels.interfaceLanguage} options={interfaceLanguages} bind:value={settings.interfaceLanguage} />
+  <div class="app-section">
+    <LanguageSelect
+      label={labels.interfaceLanguage}
+      options={interfaceLanguages}
+      bind:value={settings.interfaceLanguage}
+      on:change={onSettingsChange}
+    />
   </div>
 
-  <div class="section">
+  <div class="app-section">
     <StatusMessage text={statusText} type={statusType} />
     <FeedbackForm
       labels={labels}
       draft={feedbackDraft}
+      {sendLabel}
       showExtraActions={true}
-      onSave={onSave}
+      onDraftChange={onDraftChange}
+      onSend={onSend}
       onCopy={onCopy}
-      onMail={onMail}
     />
   </div>
 </div>
-
-<style>
-  .stack {
-    display: grid;
-  }
-
-  .section {
-    border-top: 1px solid var(--line);
-  }
-
-  .section:first-child {
-    border-top: 0;
-  }
-</style>

@@ -19,40 +19,323 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-* {
-  box-sizing: border-box;
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    min-width: 380px;
+  }
+
+  body {
+    background:
+      radial-gradient(circle at top right, rgba(118, 146, 255, 0.12), transparent 32%),
+      radial-gradient(circle at bottom left, rgba(52, 211, 153, 0.08), transparent 28%),
+      var(--bg);
+  }
+
+  body:not(.popup) {
+    min-height: 100vh;
+  }
+
+  body.popup {
+    min-width: 380px;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button {
+    transition: background 160ms ease, color 160ms ease, opacity 160ms ease, border-color 160ms ease;
+  }
+
+  #app {
+    width: 100%;
+  }
 }
 
-html,
-body {
-  margin: 0;
-  min-width: 380px;
-  min-height: 100%;
+@layer components {
+  .app-shell {
+    @apply mx-auto max-w-[760px] px-4 py-6;
+  }
+
+  .app-shell--compact {
+    @apply max-w-none p-0;
+  }
+
+  .app-card {
+    border: 1px solid var(--line);
+    background: var(--panel);
+    box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08);
+  }
+
+  .app-stack {
+    @apply grid gap-2.5 p-4;
+  }
+
+  .app-stack-lg {
+    @apply grid gap-4 p-[18px];
+  }
+
+  .app-section {
+    border-top: 1px solid var(--line);
+  }
+
+  .app-section:first-child {
+    border-top: 0;
+  }
+
+  .app-field {
+    @apply grid gap-2;
+  }
+
+  .app-label {
+    @apply text-xs;
+    color: var(--muted);
+  }
+
+  .app-input,
+  .app-textarea {
+    @apply w-full bg-white px-3 py-2.5 outline-none;
+    border: 1px solid var(--line);
+    color: var(--text);
+  }
+
+  .app-input:focus,
+  .app-textarea:focus {
+    border-color: var(--accent);
+  }
+
+  .app-textarea {
+    @apply min-h-[120px] resize-y;
+  }
+
+  .app-textarea--translate {
+    @apply min-h-[132px];
+  }
+
+  .app-select-inline {
+    @apply w-fit border-0 bg-transparent p-0;
+    color: var(--muted);
+  }
+
+  .app-row {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .app-actions {
+    @apply flex flex-wrap justify-end gap-3;
+  }
+
+  .app-actions-start {
+    @apply flex flex-wrap justify-start gap-3;
+  }
+
+  .app-actions-end-tight {
+    @apply flex flex-wrap justify-end gap-2;
+  }
+
+  .app-footer {
+    @apply flex justify-start;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-link,
+  .btn-icon,
+  .btn-nav {
+    @apply cursor-pointer;
+  }
+
+  .btn-primary {
+    @apply border-0 px-[14px] py-2.5 text-white;
+    background: var(--accent);
+  }
+
+  .btn-secondary {
+    @apply border px-[14px] py-2.5;
+    border-color: var(--line);
+    background: #fff;
+    color: var(--text);
+  }
+
+  .btn-link {
+    @apply border-0 bg-transparent p-0;
+    color: var(--muted);
+  }
+
+  .btn-link:hover:not(:disabled),
+  .btn-icon:hover,
+  .btn-nav:hover {
+    color: var(--text);
+  }
+
+  .btn-link:disabled {
+    @apply cursor-not-allowed opacity-45;
+  }
+
+  .btn-icon {
+    @apply border-0 bg-transparent text-base;
+    color: var(--muted);
+  }
+
+  .collection-favorite {
+    @apply px-4 py-[14px];
+  }
+
+  .btn-nav {
+    @apply border-0;
+    width: 34px;
+    min-width: 34px;
+    border-right: 1px solid var(--line);
+    background: var(--surface-muted);
+    color: var(--muted);
+  }
+
+  .btn-nav:hover {
+    background: #eef2f7;
+  }
+
+  .status {
+    @apply min-h-[18px] text-xs;
+  }
+
+  .status--error {
+    color: var(--error);
+  }
+
+  .status--success {
+    color: var(--success);
+  }
+
+  .frame {
+    @apply flex;
+  }
+
+  .frame__content {
+    @apply min-w-0 flex-1;
+  }
+
+  .frame__header {
+    @apply px-[18px] pt-[18px];
+  }
+
+  .frame__title {
+    @apply m-0 text-lg leading-tight;
+  }
+
+  .frame__subtitle {
+    @apply mt-1.5 mb-0 text-[13px];
+    color: var(--muted);
+  }
+
+  .collection-list {
+    @apply max-h-[260px] overflow-auto;
+  }
+
+  .collection-item {
+    @apply flex items-stretch border-t;
+    border-color: var(--line);
+  }
+
+  .collection-item:first-child {
+    @apply border-t-0;
+  }
+
+  .collection-open {
+    @apply min-w-0 flex-1 border-0 bg-transparent px-[18px] py-[14px] text-left;
+  }
+
+  .collection-open:hover {
+    background: #f7f9fc;
+  }
+
+  .collection-text {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .empty-state {
+    @apply p-[18px];
+    color: var(--muted);
+  }
+
+  .content-copy {
+    @apply leading-[1.6];
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .result-toolbar {
+    @apply flex items-center gap-3;
+  }
+
+  .result-divider {
+    @apply h-px flex-1 relative overflow-hidden;
+    background: var(--line);
+  }
+
+  .loading-track {
+    @apply h-1.5 overflow-hidden rounded-full;
+    background: #edf1f6;
+  }
+
+  .loading-bar {
+    @apply h-full w-[60%] rounded-full;
+    background: var(--accent);
+    animation: slide 1.25s linear infinite;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+
+  .shortcut-display {
+    @apply inline-flex items-center gap-2;
+    color: var(--muted);
+  }
+
+  .shortcut-button {
+    @apply flex w-fit items-center gap-2;
+    color: var(--muted);
+  }
+
+  .shortcut-key {
+    @apply inline-flex h-10 w-10 items-center justify-center border;
+    border-color: var(--line);
+    color: var(--text);
+  }
+
+  .shortcut-key--active {
+    border-color: var(--accent);
+  }
+
+  .shortcut-hint {
+    @apply text-xs;
+    color: var(--muted);
+  }
 }
 
-body {
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at top right, rgba(118, 146, 255, 0.12), transparent 32%),
-    radial-gradient(circle at bottom left, rgba(52, 211, 153, 0.08), transparent 28%),
-    var(--bg);
-}
+@keyframes slide {
+  0% {
+    transform: translateX(-110%);
+  }
 
-body.popup {
-  min-width: 380px;
-}
+  50% {
+    transform: translateX(90%);
+  }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
-}
-
-button {
-  transition: background 160ms ease, color 160ms ease, opacity 160ms ease, border-color 160ms ease;
-}
-
-#app {
-  width: 100%;
+  100% {
+    transform: translateX(220%);
+  }
 }

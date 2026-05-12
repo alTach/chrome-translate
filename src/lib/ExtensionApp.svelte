@@ -9,29 +9,35 @@
   import SettingsPage from '@/lib/pages/SettingsPage.svelte'
   import TranslatePage from '@/lib/pages/TranslatePage.svelte'
   import { buildMessages } from '@/lib/utils/messages.js'
+  import pkg from '../../package.json'
   import { FEEDBACK_EMAIL, INTERFACE_LANGUAGES, TARGET_LANGUAGES } from '@/shared/constants.js'
   import { isLocalTranslationSupported, translateText } from '@/shared/translator.js'
   import {
     addHistoryEntry,
     consumePopupPrefillSelection,
+    consumePopupAutoTranslateSelection,
     getFavorites,
     getFeedbackDraft,
     getHistory,
     getLastSelection,
     getPopupSession,
     getSettings,
+    ensureFavorite,
+    removeFavorite,
     saveFeedbackDraft,
     savePopupSession,
     saveSettings,
-    toggleFavorite
   } from '@/shared/storage.js'
 
   export let context = 'popup'
+  export let compact = null
 
   let route = context === 'options' ? 'options' : 'translate'
+  let routeStack = []
   let labels = {}
   let ready = false
   let loading = false
+  let loadingText = ''
   let statusText = ''
   let statusType = 'default'
   let feedbackStatusText = ''
@@ -41,9 +47,36 @@
   let session = { sourceText: '', translatedText: '', targetLanguage: '', entryId: '' }
   let history = []
   let favorites = []
-  let feedbackDraft = { email: '', title: '', message: '' }
+  let feedbackDraft = { title: '', message: '' }
+  let resultLanguageAbortController = null
+  let loadingToken = null
+  let loadingRevealTimer = null
+  let loadingShownAt = 0
 
-  $: favoriteIds = new Set(favorites.map((item) => item.id))
+  function getEntryKey(entry) {
+    return JSON.stringify([
+      entry?.sourceText?.trim() || '',
+      entry?.translatedText?.trim() || '',
+      entry?.language || ''
+    ])
+  }
+
+  function buildSessionEntry() {
+    if (!session.sourceText?.trim() || !session.translatedText?.trim()) {
+      return null
+    }
+
+    return {
+      id: session.entryId || crypto.randomUUID(),
+      sourceText: session.sourceText,
+      translatedText: session.translatedText,
+      language: session.targetLanguage || settings.targetLanguage,
+      createdAt: Date.now()
+    }
+  }
+
+  $: favoriteKeys = new Set(favorites.map((item) => getEntryKey(item)))
+  $: visibleLoadingText = loading ? loadingText : ''
   $: currentEntry =
     history.find((item) => item.id === session.entryId) ||
     history.find(
@@ -69,6 +102,67 @@
     statusType = 'default'
   }
 
+  function resetLoadingText() {
+    loadingText = ''
+  }
+
+  function clearLoadingRevealTimer() {
+    if (loadingRevealTimer) {
+      window.clearTimeout(loadingRevealTimer)
+      loadingRevealTimer = null
+    }
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, ms)
+    })
+  }
+
+  function beginLoading(nextLoadingText = '') {
+    const token = Symbol('loading')
+
+    loadingToken = token
+    loading = false
+    loadingText = nextLoadingText
+    clearLoadingRevealTimer()
+
+    loadingRevealTimer = window.setTimeout(() => {
+      if (loadingToken !== token) {
+        return
+      }
+
+      loading = true
+      loadingShownAt = Date.now()
+      loadingRevealTimer = null
+    }, 200)
+
+    return token
+  }
+
+  async function endLoading(token) {
+    if (loadingToken !== token) {
+      return
+    }
+
+    clearLoadingRevealTimer()
+
+    if (loading) {
+      const visibleFor = Date.now() - loadingShownAt
+      if (visibleFor < 600) {
+        await wait(600 - visibleFor)
+      }
+    }
+
+    if (loadingToken !== token) {
+      return
+    }
+
+    loading = false
+    loadingToken = null
+    resetLoadingText()
+  }
+
   function showStatus(message, type = 'default') {
     statusText = message
     statusType = type
@@ -86,7 +180,31 @@
   }
 
   function navigate(nextRoute) {
+    if (nextRoute === route) {
+      resetStatus()
+      return
+    }
+
+    routeStack = [...routeStack, route]
     route = nextRoute
+    resetStatus()
+  }
+
+  function replaceRoute(nextRoute) {
+    route = nextRoute
+    resetStatus()
+  }
+
+  function goBack() {
+    if (!routeStack.length) {
+      route = context === 'options' ? 'options' : 'translate'
+      resetStatus()
+      return
+    }
+
+    const previousRoute = routeStack[routeStack.length - 1]
+    routeStack = routeStack.slice(0, -1)
+    route = previousRoute
     resetStatus()
   }
 
@@ -107,15 +225,15 @@
       entryId: entry.id
     })
     await refreshCollections()
-    route = 'result'
+    replaceRoute('result')
   }
 
   async function handleTranslate(text) {
     resetStatus()
+    resetLoadingText()
     sourceText = text
 
     if (!sourceText.trim()) {
-      showStatus(labels.emptyInput, 'error')
       return
     }
 
@@ -124,7 +242,14 @@
       return
     }
 
-    loading = true
+    session = {
+      sourceText,
+      translatedText: '',
+      targetLanguage: settings.targetLanguage,
+      entryId: ''
+    }
+    navigate('result')
+    const loadingSession = beginLoading(labels.translatorInitializing)
 
     try {
       const result = await translateText({
@@ -134,9 +259,10 @@
 
       await createEntry(result.translatedText, result.targetLanguage)
     } catch (error) {
+      goBack()
       showStatus(error.message || labels.translationFailed, 'error')
     } finally {
-      loading = false
+      await endLoading(loadingSession)
     }
   }
 
@@ -148,16 +274,39 @@
       entryId: item.id
     })
     await refreshCollections()
-    route = 'result'
+    navigate('result')
   }
 
-  async function toggleFavoriteEntry(item = currentEntry) {
-    if (!item) {
+  async function ensureFavoriteEntry(item = currentEntry) {
+    const entry = item || buildSessionEntry()
+
+    if (!entry) {
       return
     }
 
-    await toggleFavorite(item)
-    favorites = await getFavorites()
+    if (!history.some((historyItem) => getEntryKey(historyItem) === getEntryKey(entry))) {
+      history = await addHistoryEntry(entry)
+      session = await savePopupSession({
+        sourceText: entry.sourceText,
+        translatedText: entry.translatedText,
+        targetLanguage: entry.language,
+        entryId: entry.id
+      })
+    }
+
+    favorites = [entry, ...favorites.filter((favorite) => getEntryKey(favorite) !== getEntryKey(entry))]
+    favorites = await ensureFavorite(entry)
+  }
+
+  async function removeFavoriteEntry(item = currentEntry) {
+    const entry = item || buildSessionEntry()
+
+    if (!entry) {
+      return
+    }
+
+    favorites = favorites.filter((favorite) => getEntryKey(favorite) !== getEntryKey(entry))
+    favorites = await removeFavorite(entry)
   }
 
   async function updateResultLanguage(nextLanguage) {
@@ -165,20 +314,41 @@
       return
     }
 
-    loading = true
+    resultLanguageAbortController?.abort()
+    const controller = new AbortController()
+    resultLanguageAbortController = controller
     resetStatus()
+    const loadingSession = beginLoading(labels.translatorInitializing)
 
     try {
       sourceText = session.sourceText
       const result = await translateText({
         text: session.sourceText,
-        targetLanguage: nextLanguage
+        targetLanguage: nextLanguage,
+        signal: controller.signal,
+        onProgress: () => {
+          loadingText = labels.translatorInitializing
+        }
       })
+
+      if (controller.signal.aborted) {
+        return
+      }
+
       await createEntry(result.translatedText, result.targetLanguage)
+      resetLoadingText()
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        return
+      }
+
       showStatus(error.message || labels.translationFailed, 'error')
     } finally {
-      loading = false
+      if (resultLanguageAbortController === controller) {
+        resultLanguageAbortController = null
+      }
+
+      await endLoading(loadingSession)
     }
   }
 
@@ -193,24 +363,42 @@
     await loadLabels()
   }
 
-  async function saveFeedback() {
+  async function persistFeedbackDraft() {
     await saveFeedbackDraft(feedbackDraft)
-    showFeedbackStatus(labels.saveShort, 'success')
   }
 
   async function copyFeedback() {
     const payload =
       `Тема: ${feedbackDraft.title || labels.noSubject}\n` +
-      `Email: ${FEEDBACK_EMAIL}\n\n` +
+      `Кому: ${FEEDBACK_EMAIL}\n\n` +
       `${feedbackDraft.message || labels.emptyMessage}`
 
     await navigator.clipboard.writeText(payload)
     showFeedbackStatus(labels.copied, 'success')
   }
 
-  function openMail() {
+  function buildFeedbackMetadata() {
+    return [
+      `App version: ${pkg.version}`,
+      `Browser: ${navigator.userAgent}`,
+      `Platform: ${navigator.platform || 'unknown'}`,
+      `Language: ${navigator.language || 'unknown'}`
+    ].join('\n')
+  }
+
+  async function openMail() {
+    await saveFeedbackDraft(feedbackDraft)
+
     const subject = encodeURIComponent(feedbackDraft.title || 'Local Translator feedback')
-    const body = encodeURIComponent(feedbackDraft.message || '')
+    const body = encodeURIComponent(
+      [
+        feedbackDraft.message || labels.emptyMessage,
+        '',
+        'Meta:',
+        buildFeedbackMetadata()
+      ].join('\n')
+    )
+
     window.location.href = `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${body}`
   }
 
@@ -221,11 +409,19 @@
     await refreshCollections()
 
     if (context === 'popup') {
-      const shouldPrefillSelection = await consumePopupPrefillSelection()
+      const [shouldPrefillSelection, shouldAutoTranslateSelection] = await Promise.all([
+        consumePopupPrefillSelection(),
+        consumePopupAutoTranslateSelection()
+      ])
+
       if (shouldPrefillSelection) {
         const lastSelection = await getLastSelection()
         if (lastSelection?.trim()) {
           sourceText = lastSelection
+
+          if (shouldAutoTranslateSelection) {
+            await handleTranslate(lastSelection)
+          }
         }
       }
     }
@@ -235,7 +431,7 @@
 </script>
 
 {#if ready}
-  <AppShell compact={context === 'popup'} title={labels.appTitle}>
+  <AppShell compact={compact ?? context === 'popup'} title={labels.appTitle}>
     {#if context === 'options'}
       <OptionsPage
         {labels}
@@ -243,20 +439,18 @@
         {feedbackDraft}
         targetLanguages={TARGET_LANGUAGES}
         interfaceLanguages={INTERFACE_LANGUAGES}
+        sendLabel={labels.send}
         statusText={feedbackStatusText}
         statusType={feedbackStatusType}
-        onSave={async () => {
-          await persistSettings()
-          await saveFeedback()
-        }}
+        onSettingsChange={persistSettings}
+        onDraftChange={persistFeedbackDraft}
+        onSend={openMail}
         onCopy={copyFeedback}
-        onMail={openMail}
       />
     {:else if route === 'translate'}
       <TranslatePage
         {labels}
         bind:sourceText
-        {loading}
         {statusText}
         {statusType}
         hasFavorites={favorites.length > 0}
@@ -268,40 +462,43 @@
         onNavigate={navigate}
       />
     {:else if route === 'result'}
-      <PageFrame showBack={true} on:back={() => navigate('translate')}>
+      <PageFrame showBack={true} on:back={goBack}>
         <ResultPage
           {labels}
           {session}
           targetLanguages={TARGET_LANGUAGES}
-          isFavorite={currentEntry ? favoriteIds.has(currentEntry.id) : false}
+          isFavorite={favoriteKeys.has(getEntryKey(currentEntry || buildSessionEntry()))}
+          {loading}
+          loadingText={visibleLoadingText}
           onChangeLanguage={updateResultLanguage}
-          onToggleFavorite={toggleFavoriteEntry}
+          onToggleFavorite={ensureFavoriteEntry}
         />
       </PageFrame>
     {:else if route === 'history'}
-      <PageFrame showBack={true} on:back={() => navigate('translate')}>
+      <PageFrame showBack={true} on:back={goBack}>
         <CollectionPage
           {labels}
           items={history}
           emptyText={labels.historyEmpty}
-          {favoriteIds}
+          noticeText={labels.historyLimitNotice}
+          {favoriteKeys}
           onOpen={openEntry}
-          onToggleFavorite={toggleFavoriteEntry}
+          onToggleFavorite={ensureFavoriteEntry}
         />
       </PageFrame>
     {:else if route === 'favorites'}
-      <PageFrame showBack={true} on:back={() => navigate('translate')}>
+      <PageFrame showBack={true} on:back={goBack}>
         <CollectionPage
           {labels}
           items={favorites}
           emptyText={labels.favoritesEmpty}
-          {favoriteIds}
+          {favoriteKeys}
           onOpen={openEntry}
-          onToggleFavorite={toggleFavoriteEntry}
+          onToggleFavorite={removeFavoriteEntry}
         />
       </PageFrame>
     {:else if route === 'settings'}
-      <PageFrame showBack={true} on:back={() => navigate('translate')}>
+      <PageFrame showBack={true} on:back={goBack}>
         <SettingsPage
           {labels}
           {settings}
@@ -313,13 +510,15 @@
         />
       </PageFrame>
     {:else if route === 'feedback'}
-      <PageFrame showBack={true} on:back={() => navigate('settings')}>
+      <PageFrame showBack={true} on:back={goBack}>
         <FeedbackForm
           {labels}
           draft={feedbackDraft}
+          sendLabel={labels.send}
           statusText={feedbackStatusText}
           statusType={feedbackStatusType}
-          onSave={saveFeedback}
+          onDraftChange={persistFeedbackDraft}
+          onSend={openMail}
         />
       </PageFrame>
     {/if}
