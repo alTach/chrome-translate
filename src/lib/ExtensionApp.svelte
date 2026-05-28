@@ -409,21 +409,41 @@
     await refreshCollections()
 
     if (context === 'popup') {
-      const [shouldPrefillSelection, shouldAutoTranslateSelection] = await Promise.all([
-        consumePopupPrefillSelection(),
-        consumePopupAutoTranslateSelection()
-      ])
+      // Run selection prefill in background to avoid blocking initial render
+      void (async () => {
+        const [shouldPrefillSelection, shouldAutoTranslateSelection] = await Promise.all([
+          consumePopupPrefillSelection(),
+          consumePopupAutoTranslateSelection()
+        ])
 
-      if (shouldPrefillSelection) {
-        const lastSelection = await getLastSelection()
-        if (lastSelection?.trim()) {
-          sourceText = lastSelection
+        let selectionText = ''
 
-          if (shouldAutoTranslateSelection) {
-            await handleTranslate(lastSelection)
+        // Try to get fresh selection from active tab
+        if (typeof chrome !== 'undefined' && chrome.tabs) {
+          try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+            if (tab?.id) {
+              const response = await chrome.tabs.sendMessage(tab.id, { type: 'get-selection' })
+              selectionText = response?.text || ''
+            }
+          } catch (error) {
+            console.debug('Failed to get selection from tab:', error)
           }
         }
-      }
+
+        // Fallback to last selection if no fresh selection or if it fails
+        if (!selectionText) {
+          selectionText = await getLastSelection()
+        }
+
+        if (selectionText?.trim()) {
+          sourceText = selectionText
+
+          if (shouldPrefillSelection && shouldAutoTranslateSelection) {
+             void handleTranslate(selectionText)
+          }
+        }
+      })()
     }
 
     ready = true

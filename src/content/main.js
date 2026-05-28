@@ -551,7 +551,13 @@ function handleViewportChange() {
 function bindPageEvents() {
   const lastPointer = { x: 0, y: 0 }
 
-  chrome.runtime.onMessage.addListener((message) => {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message?.type === 'get-selection') {
+      const data = getSelectedTextAndRect()
+      sendResponse({ text: data?.text || '' })
+      return
+    }
+
     if (message?.type === 'invoke-translation') {
       void setPopupPrefillSelection(true)
       void openTranslationFromSelection({ x: lastPointer.x, y: lastPointer.y })
@@ -602,3 +608,5 @@ function initPageTranslator() {
 export function onExecute() {
   initPageTranslator()
 }
+
+onExecute()
