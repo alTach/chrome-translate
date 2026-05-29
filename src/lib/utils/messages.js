@@ -36,7 +36,10 @@ export const UI_MESSAGES = {
   shortcutHint: 'Нажмите клавишу, пока блок в фокусе',
   noSubject: 'Без темы',
   emptyMessage: 'Сообщение пока пустое.',
-  feedbackPageTitle: 'Обратная связь'
+  feedbackPageTitle: 'Обратная связь',
+  translationEngine: 'Движок перевода',
+  engineNative: 'Chrome Built-in AI',
+  engineGoogle: 'Google Translate'
 }
 
 export async function buildMessages(language) {

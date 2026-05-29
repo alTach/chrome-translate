@@ -87,14 +87,39 @@ async function getTranslator({ sourceLanguage, targetLanguage, onProgress, signa
   return await translatorCache.get(cacheKey)
 }
 
+async function translateWithGoogle({ text, targetLanguage, signal }) {
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLanguage}&dt=t&q=${encodeURIComponent(text)}`
+  
+  const response = await fetch(url, { signal })
+  if (!response.ok) {
+    throw new Error('Google Translate request failed')
+  }
+
+  const data = await response.json()
+  // The structure is [[["translatedText", "sourceText", ...]], ...]
+  const translatedText = data[0].map(item => item[0]).join('')
+  const sourceLanguage = data[2]
+
+  return {
+    translatedText,
+    sourceLanguage,
+    targetLanguage
+  }
+}
+
 export async function translateText({
   text,
   sourceLanguage,
   targetLanguage,
   onProgress,
-  signal
+  signal,
+  engine = 'native'
 }) {
   ensureActive(signal)
+
+  if (engine === 'google') {
+    return translateWithGoogle({ text, targetLanguage, signal })
+  }
 
   if (!hasTranslatorApi()) {
     throw new Error(TRANSLATOR_MESSAGES.unsupportedBrowser)
@@ -147,9 +172,17 @@ export async function translateTextPreservingFormat({
   sourceLanguage,
   targetLanguage,
   onProgress,
-  signal
+  signal,
+  engine = 'native'
 }) {
   const normalizedText = normalizeLineEndings(text)
+  
+  // For Google Translate, we can often send larger chunks, but let's keep the segmentation if it helps
+  // Actually Google Translate handles newlines fine.
+  if (engine === 'google') {
+     return translateWithGoogle({ text: normalizedText, targetLanguage, signal })
+  }
+
   const segments = normalizedText.split(/(\n+)/)
 
   if (segments.length === 1) {
@@ -158,7 +191,8 @@ export async function translateTextPreservingFormat({
       sourceLanguage,
       targetLanguage,
       onProgress,
-      signal
+      signal,
+      engine
     })
   }
 
@@ -184,7 +218,8 @@ export async function translateTextPreservingFormat({
       sourceLanguage: resolvedSourceLanguage,
       targetLanguage: resolvedTargetLanguage,
       onProgress,
-      signal
+      signal,
+      engine
     })
 
     resolvedSourceLanguage = result.sourceLanguage

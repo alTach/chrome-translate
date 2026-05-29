@@ -47,6 +47,32 @@
   />
 
   <div class="app-field">
+    <span class="app-label">{labels.translationEngine}</span>
+    <div class="app-radio-group">
+      <label class="app-radio">
+        <input
+          type="radio"
+          name="engine"
+          value="native"
+          bind:group={settings.translationEngine}
+          on:change={onSettingsChange}
+        />
+        <span>{labels.engineNative}</span>
+      </label>
+      <label class="app-radio">
+        <input
+          type="radio"
+          name="engine"
+          value="google"
+          bind:group={settings.translationEngine}
+          on:change={onSettingsChange}
+        />
+        <span>{labels.engineGoogle}</span>
+      </label>
+    </div>
+  </div>
+
+  <div class="app-field">
     <span class="app-label">{labels.shortcut}</span>
     <div
       class="shortcut-button"

@@ -42,7 +42,7 @@
   let statusType = 'default'
   let feedbackStatusText = ''
   let feedbackStatusType = 'default'
-  let settings = { targetLanguage: 'en', interfaceLanguage: 'ru', shortcutKey: 's' }
+  let settings = { targetLanguage: 'en', interfaceLanguage: 'ru', shortcutKey: 's', translationEngine: 'native' }
   let sourceText = ''
   let session = { sourceText: '', translatedText: '', targetLanguage: '', entryId: '' }
   let history = []
@@ -237,7 +237,7 @@
       return
     }
 
-    if (!isLocalTranslationSupported()) {
+    if (settings.translationEngine === 'native' && !isLocalTranslationSupported()) {
       showStatus(labels.noTranslator, 'error')
       return
     }
@@ -254,7 +254,8 @@
     try {
       const result = await translateText({
         text: sourceText,
-        targetLanguage: settings.targetLanguage
+        targetLanguage: settings.targetLanguage,
+        engine: settings.translationEngine
       })
 
       await createEntry(result.translatedText, result.targetLanguage)
@@ -326,6 +327,7 @@
         text: session.sourceText,
         targetLanguage: nextLanguage,
         signal: controller.signal,
+        engine: settings.translationEngine,
         onProgress: () => {
           loadingText = labels.translatorInitializing
         }

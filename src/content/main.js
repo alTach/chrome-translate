@@ -338,10 +338,12 @@ async function runTranslation(sourceLanguage) {
   statusEl.classList.remove('error')
 
   try {
+    const settings = await getSettings()
     const result = await translateTextPreservingFormat({
       text: currentText,
       sourceLanguage,
-      targetLanguage: currentTargetLanguage
+      targetLanguage: currentTargetLanguage,
+      engine: settings.translationEngine
     })
     currentSourceLanguage = result.sourceLanguage
     sourceLanguageSelect.value = result.sourceLanguage

@@ -324,6 +324,18 @@
     @apply text-xs;
     color: var(--muted);
   }
+
+  .app-radio-group {
+    @apply flex flex-col gap-2.5;
+  }
+
+  .app-radio {
+    @apply flex cursor-pointer items-center gap-2.5 text-[13px] leading-none;
+  }
+
+  .app-radio input {
+    @apply h-4 w-4 shrink-0 cursor-pointer accent-current;
+  }
 }
 
 @keyframes slide {
