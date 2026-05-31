@@ -34,6 +34,7 @@ export const TARGET_LANGUAGES = [
 
 export const INTERFACE_LANGUAGES = TARGET_LANGUAGES
 export const HISTORY_LIMIT = 20
+export const SELECTION_TEXT_LIMIT = 2000
 export const FEEDBACK_EMAIL = 'hello@deepseek-translator.local'
 
 export function getDefaultTargetLanguage() {

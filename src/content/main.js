@@ -1,5 +1,7 @@
+import './SelectionTranslator.svelte'
 import { TARGET_LANGUAGES, getLanguageLabel } from '@/shared/constants.js'
 import {
+  ensureFavorite,
   getSettings,
   saveLastSelection,
   savePanelPrefs,
@@ -11,7 +13,7 @@ import {
   translateTextPreservingFormat
 } from '@/shared/translator.js'
 import { languagesDiffer } from '@/trash/language.js'
-import { normalizeLineEndings, setFormattedText } from '@/trash/text.js'
+import { normalizeLineEndings } from '@/trash/text.js'
 import {
   DEFAULT_SOURCE_LANGUAGE,
   DEFAULT_TARGET_LANGUAGE,
@@ -27,41 +29,20 @@ import {
   computeTriggerPlacement
 } from '@/trash/content/panel-placement.js'
 import { computePanelSize, computeResizedPanelSize } from '@/trash/content/panel-size.js'
-import { PANEL_STYLES } from '@/trash/content/panel-styles.js'
 import {
   getRangeRect,
   getSelectedTextAndRect,
   isEditable,
   isTextInputElement
 } from '@/trash/content/selection.js'
-import { TRIGGER_ICON_SVG } from '@/trash/content/trigger-icon.js'
 
 /** @type {HTMLElement|null} */
-let root = null
-/** @type {ShadowRoot|null} */
-let shadow = null
-/** @type {HTMLButtonElement|null} */
-let triggerButton = null
-/** @type {HTMLElement|null} */
-let panel = null
-/** @type {HTMLElement|null} */
-let panelBar = null
-/** @type {HTMLButtonElement|null} */
-let pinButton = null
-/** @type {HTMLButtonElement|null} */
-let closeButton = null
-/** @type {HTMLElement|null} */
-let sourceTextEl = null
-/** @type {HTMLSelectElement|null} */
-let sourceLanguageSelect = null
-/** @type {HTMLElement|null} */
-let targetLanguageEl = null
-/** @type {HTMLElement|null} */
-let resultEl = null
-/** @type {HTMLElement|null} */
-let statusEl = null
+let translatorUi = null
 
 let currentText = ''
+let currentTranslatedText = ''
+let statusText = ''
+let statusType = 'default'
 /** @type {DOMRect|null} */
 let currentRect = null
 /** @type {Range|null} */
@@ -70,261 +51,174 @@ let currentRange = null
 let currentAnchor = null
 /** @type {{left:number, top:number}|null} */
 let panelPlacement = null
+let triggerPlacement = { left: 0, top: 0 }
+let triggerVisible = false
 let currentTargetLanguage = DEFAULT_TARGET_LANGUAGE
 let currentSourceLanguage = DEFAULT_SOURCE_LANGUAGE
 let panelOpen = false
 let panelPinned = false
+let favoriteActive = false
 /** @type {null|{type?:string,offsetX?:number,offsetY?:number,startX?:number,startY?:number,startWidth?:number,startHeight?:number}} */
 let dragState = null
 let panelSize = { ...INITIAL_PANEL_SIZE }
 let pageTranslatorInitialized = false
 
-function applyPanelSize() {
-  panel.style.width = `${panelSize.width}px`
-  panel.style.height = `${panelSize.height}px`
+function syncUi() {
+  if (!translatorUi) {
+    return
+  }
+
+  Object.assign(translatorUi, {
+    messages: PAGE_UI_MESSAGES,
+    languages: TARGET_LANGUAGES,
+    triggerVisible,
+    triggerLeft: triggerPlacement.left,
+    triggerTop: triggerPlacement.top,
+    panelVisible: panelOpen,
+    panelLeft: panelPlacement?.left ?? 0,
+    panelTop: panelPlacement?.top ?? 0,
+    panelWidth: panelSize.width,
+    panelHeight: panelSize.height,
+    pinned: panelPinned,
+    sourceText: currentText,
+    translatedText: currentTranslatedText,
+    statusText,
+    statusType,
+    sourceLanguage: currentSourceLanguage,
+    targetLanguageLabel: getLanguageLabel(currentTargetLanguage),
+    favoriteEnabled: Boolean(currentText.trim() && currentTranslatedText.trim()),
+    favoriteActive
+  })
 }
 
-function applyPanelPlacement() {
+function rememberPanelPlacement() {
   if (!panelPlacement) {
     return
   }
 
-  panel.style.left = `${panelPlacement.left}px`
-  panel.style.top = `${panelPlacement.top}px`
-}
-
-function rememberPanelPlacement() {
-  panelPlacement = {
-    left: panel.offsetLeft,
-    top: panel.offsetTop
-  }
+  panelPlacement = clampPanelPlacement(panelPlacement, panelSize)
+  syncUi()
 }
 
 function refreshPanelLayout(resultText = '') {
   panelSize = computePanelSize(currentText, resultText)
-  applyPanelSize()
 
-  if (!panelPlacement || !panelOpen) {
-    return
+  if (panelPlacement && panelOpen) {
+    panelPlacement = clampPanelPlacement(panelPlacement, panelSize)
   }
 
-  panelPlacement = clampPanelPlacement(panelPlacement, panelSize)
-  applyPanelPlacement()
+  syncUi()
 }
 
 function hideTrigger() {
-  triggerButton?.classList.add('hidden')
+  triggerVisible = false
+  syncUi()
 }
 
 function hidePanel() {
-  panel?.classList.add('hidden')
   panelOpen = false
+  syncUi()
 }
 
 function isExtensionUiEvent(event) {
   const path = event.composedPath?.() ?? []
-  return path.includes(root)
+  return translatorUi ? path.includes(translatorUi) : false
 }
 
 function clearUi({ resetPin = true } = {}) {
   currentText = ''
+  currentTranslatedText = ''
+  statusText = ''
+  statusType = 'default'
   currentRect = null
   currentRange = null
   currentAnchor = null
   panelPlacement = null
   dragState = null
+  favoriteActive = false
 
   if (resetPin) {
     panelPinned = false
-    pinButton?.classList.remove('active')
-    pinButton?.setAttribute('aria-pressed', 'false')
-    pinButton?.setAttribute('aria-label', PAGE_UI_MESSAGES.pinLabel)
   }
 
-  hideTrigger()
+  triggerVisible = false
   hidePanel()
+  syncUi()
 }
 
 function positionPanelNearAnchor(anchor) {
   panelPlacement = computePanelPlacementNearAnchor(anchor, panelSize)
-  applyPanelSize()
-  applyPanelPlacement()
+  syncUi()
 }
 
 function positionPanelFromPoint(x, y) {
-  panelPlacement = computePanelPlacementFromPoint(
-    x,
-    y,
-    panel.offsetWidth || panelSize.width,
-    panel.offsetHeight || panelSize.height
-  )
-  applyPanelPlacement()
+  panelPlacement = computePanelPlacementFromPoint(x, y, panelSize.width, panelSize.height)
+  syncUi()
 }
 
 function showTriggerAtCursor(anchor) {
-  const placement = computeTriggerPlacement(anchor)
-  triggerButton.classList.remove('hidden')
-  triggerButton.style.left = `${placement.left}px`
-  triggerButton.style.top = `${placement.top}px`
+  triggerPlacement = computeTriggerPlacement(anchor)
+  triggerVisible = true
+  syncUi()
 }
 
 function setPinState(isPinned) {
   panelPinned = isPinned
-  pinButton.classList.toggle('active', panelPinned)
-  pinButton.setAttribute('aria-pressed', String(panelPinned))
-  pinButton.setAttribute(
-    'aria-label',
-    panelPinned ? PAGE_UI_MESSAGES.unpinLabel : PAGE_UI_MESSAGES.pinLabel
-  )
+  syncUi()
+}
+
+function setStatus(message = '', type = 'default') {
+  statusText = message
+  statusType = type
+  syncUi()
 }
 
 function createUi() {
-  root = document.createElement('div')
-  root.id = ROOT_ID
-  root.style.all = 'initial'
-  ;(document.body || document.documentElement).append(root)
+  translatorUi = document.createElement('local-translator-panel')
+  translatorUi.id = ROOT_ID
+  ;(document.body || document.documentElement).append(translatorUi)
 
-  shadow = root.attachShadow({ mode: 'open' })
-
-  const style = document.createElement('style')
-  style.textContent = PANEL_STYLES
-
-  const wrap = document.createElement('div')
-  wrap.className = 'wrap'
-
-  triggerButton = document.createElement('button')
-  triggerButton.type = 'button'
-  triggerButton.className = 'trigger hidden'
-  triggerButton.setAttribute('aria-label', PAGE_UI_MESSAGES.triggerLabel)
-  triggerButton.innerHTML = TRIGGER_ICON_SVG
-  triggerButton.addEventListener('click', (event) => {
+  translatorUi.addEventListener('triggerclick', (event) => {
     if (!currentAnchor) {
-      currentAnchor = { x: event.clientX, y: event.clientY }
+      currentAnchor = {
+        x: event.detail?.x ?? window.innerWidth / 2,
+        y: event.detail?.y ?? window.innerHeight / 2
+      }
     }
 
     void openPanel()
   })
 
-  panel = document.createElement('div')
-  panel.className = 'panel hidden'
-
-  panelBar = document.createElement('div')
-  panelBar.className = 'panel-bar'
-
-  const panelTitle = document.createElement('div')
-  panelTitle.className = 'panel-title'
-  panelTitle.textContent = PAGE_UI_MESSAGES.panelTitle
-
-  const panelActions = document.createElement('div')
-  panelActions.className = 'panel-actions'
-
-  pinButton = document.createElement('button')
-  pinButton.type = 'button'
-  pinButton.className = 'panel-pin'
-  pinButton.setAttribute('aria-label', PAGE_UI_MESSAGES.pinLabel)
-  pinButton.setAttribute('aria-pressed', 'false')
-  pinButton.textContent = '⚲'
-  pinButton.addEventListener('mousedown', (event) => event.stopPropagation())
-  pinButton.addEventListener('click', (event) => {
-    event.preventDefault()
-    event.stopPropagation()
-    setPinState(!panelPinned)
-  })
-
-  closeButton = document.createElement('button')
-  closeButton.type = 'button'
-  closeButton.className = 'panel-close'
-  closeButton.setAttribute('aria-label', PAGE_UI_MESSAGES.closeLabel)
-  closeButton.textContent = '×'
-  closeButton.addEventListener('mousedown', (event) => event.stopPropagation())
-  closeButton.addEventListener('click', () => {
+  translatorUi.addEventListener('close', () => {
     setPinState(false)
     clearUi()
   })
 
-  panelActions.append(pinButton, closeButton)
-  panelBar.append(panelTitle, panelActions)
-  panelBar.addEventListener('mousedown', (event) => {
-    const path = event.composedPath?.() ?? []
-
-    if (path.includes(closeButton) || path.includes(pinButton)) {
-      return
-    }
-
-    dragState = {
-      type: 'move',
-      offsetX: event.clientX - panel.offsetLeft,
-      offsetY: event.clientY - panel.offsetTop
-    }
-    event.preventDefault()
+  translatorUi.addEventListener('pinchange', (event) => {
+    setPinState(Boolean(event.detail?.value))
   })
 
-  const sourceSection = document.createElement('div')
-  sourceSection.className = 'section section-text'
-  sourceTextEl = document.createElement('div')
-  sourceTextEl.className = 'source'
-  sourceSection.append(sourceTextEl)
-
-  const controlsSection = document.createElement('div')
-  controlsSection.className = 'section section-controls'
-  const controlsRow = document.createElement('div')
-  controlsRow.className = 'row'
-  sourceLanguageSelect = document.createElement('select')
-  sourceLanguageSelect.className = 'select'
-
-  for (const language of TARGET_LANGUAGES) {
-    const option = document.createElement('option')
-    option.value = language.code
-    option.textContent = language.label
-    sourceLanguageSelect.append(option)
-  }
-
-  sourceLanguageSelect.addEventListener('change', () => {
-    currentSourceLanguage = sourceLanguageSelect.value
+  translatorUi.addEventListener('source-language-change', (event) => {
+    currentSourceLanguage = event.detail?.value || DEFAULT_SOURCE_LANGUAGE
+    syncUi()
     void runTranslation(currentSourceLanguage)
   })
 
-  targetLanguageEl = document.createElement('div')
-  targetLanguageEl.className = 'target'
-  controlsRow.append(sourceLanguageSelect, targetLanguageEl)
-  controlsSection.append(controlsRow)
-
-  const resultSection = document.createElement('div')
-  resultSection.className = 'section section-text'
-  resultEl = document.createElement('div')
-  resultEl.className = 'result'
-  statusEl = document.createElement('div')
-  statusEl.className = 'status'
-  resultSection.append(resultEl, statusEl)
-
-  const panelBody = document.createElement('div')
-  panelBody.className = 'panel-body'
-  panelBody.append(sourceSection, controlsSection, resultSection)
-
-  const resizeHandle = document.createElement('div')
-  resizeHandle.className = 'resize-handle'
-  resizeHandle.setAttribute('aria-label', PAGE_UI_MESSAGES.resizeLabel)
-  resizeHandle.addEventListener('mousedown', (event) => {
-    dragState = {
-      type: 'resize',
-      startX: event.clientX,
-      startY: event.clientY,
-      startWidth: panel.offsetWidth,
-      startHeight: panel.offsetHeight
-    }
-    event.preventDefault()
-    event.stopPropagation()
+  translatorUi.addEventListener('dragstart', (event) => {
+    dragState = event.detail || null
   })
 
-  panel.append(panelBar, panelBody, resizeHandle)
-  wrap.append(triggerButton, panel)
-  shadow.append(style, wrap)
+  translatorUi.addEventListener('favorite', () => {
+    void addCurrentFavorite()
+  })
+
+  syncUi()
 }
 
 async function loadTargetLanguage() {
   const settings = await getSettings()
   currentTargetLanguage = settings.targetLanguage || DEFAULT_TARGET_LANGUAGE
-  targetLanguageEl.textContent = getLanguageLabel(currentTargetLanguage)
+  syncUi()
 }
 
 async function shouldShowTrigger(text, targetLanguage) {
@@ -332,10 +226,26 @@ async function shouldShowTrigger(text, targetLanguage) {
   return languagesDiffer(detectedLanguage, targetLanguage)
 }
 
+async function addCurrentFavorite() {
+  if (!currentText.trim() || !currentTranslatedText.trim()) {
+    return
+  }
+
+  await ensureFavorite({
+    id: crypto.randomUUID(),
+    sourceText: currentText,
+    translatedText: currentTranslatedText,
+    language: currentTargetLanguage,
+    createdAt: Date.now()
+  })
+  favoriteActive = true
+  syncUi()
+}
+
 async function runTranslation(sourceLanguage) {
-  setFormattedText(resultEl, '')
-  statusEl.textContent = PAGE_UI_MESSAGES.translating
-  statusEl.classList.remove('error')
+  currentTranslatedText = ''
+  favoriteActive = false
+  setStatus(PAGE_UI_MESSAGES.translating)
 
   try {
     const settings = await getSettings()
@@ -346,14 +256,12 @@ async function runTranslation(sourceLanguage) {
       engine: settings.translationEngine
     })
     currentSourceLanguage = result.sourceLanguage
-    sourceLanguageSelect.value = result.sourceLanguage
-    setFormattedText(resultEl, result.translatedText)
-    statusEl.textContent = ''
+    currentTranslatedText = result.translatedText
+    setStatus('')
     refreshPanelLayout(result.translatedText)
   } catch (error) {
-    setFormattedText(resultEl, '')
-    statusEl.textContent = error?.message || PAGE_UI_MESSAGES.translationFailed
-    statusEl.classList.add('error')
+    currentTranslatedText = ''
+    setStatus(error?.message || PAGE_UI_MESSAGES.translationFailed, 'error')
   }
 }
 
@@ -363,13 +271,11 @@ async function openPanel() {
   }
 
   hideTrigger()
-  panel.classList.remove('hidden')
   panelOpen = true
   currentText = normalizeLineEndings(currentText)
-  setFormattedText(sourceTextEl, currentText)
-  setFormattedText(resultEl, '')
-  statusEl.textContent = PAGE_UI_MESSAGES.translating
-  statusEl.classList.remove('error')
+  currentTranslatedText = ''
+  favoriteActive = false
+  setStatus(PAGE_UI_MESSAGES.translating)
   refreshPanelLayout('')
 
   const anchor = currentAnchor || {
@@ -381,13 +287,12 @@ async function openPanel() {
   await loadTargetLanguage()
 
   if (!isLocalTranslationSupported()) {
-    statusEl.textContent = PAGE_UI_MESSAGES.unsupportedBrowser
-    statusEl.classList.add('error')
+    setStatus(PAGE_UI_MESSAGES.unsupportedBrowser, 'error')
     return
   }
 
   currentSourceLanguage = await detectSourceLanguage(currentText).catch(() => DEFAULT_SOURCE_LANGUAGE)
-  sourceLanguageSelect.value = currentSourceLanguage
+  syncUi()
   await runTranslation(currentSourceLanguage)
 }
 
@@ -421,7 +326,10 @@ async function applySelectionData(data, anchorOverride = null) {
   currentRange = data.range
   currentAnchor = anchorOverride || data.anchor
   currentTargetLanguage = settings.targetLanguage || DEFAULT_TARGET_LANGUAGE
+  currentTranslatedText = ''
+  favoriteActive = false
   await saveLastSelection(currentText)
+  syncUi()
 }
 
 async function handleSelection(anchorOverride = null) {
@@ -499,8 +407,7 @@ function handlePointerMove(event) {
       clientX: event.clientX,
       clientY: event.clientY
     })
-    applyPanelSize()
-    positionPanelFromPoint(panel.offsetLeft, panel.offsetTop)
+    positionPanelFromPoint(panelPlacement?.left ?? 0, panelPlacement?.top ?? 0)
     return
   }
 

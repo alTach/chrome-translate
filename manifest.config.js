@@ -7,16 +7,17 @@ export default defineManifest({
   description: 'Минималистичное Chrome-расширение для локального перевода через Chrome Built-in AI Translator API.',
   version: pkg.version,
   icons: {
-    16: 'public/logo.png',
-    32: 'public/logo.png',
-    48: 'public/logo.png',
-    128: 'public/logo.png',
+    16: 'icons/icon-16.png',
+    32: 'icons/icon-32.png',
+    48: 'icons/icon-48.png',
+    128: 'icons/icon-128.png',
   },
   action: {
     default_icon: {
-      16: 'public/logo.png',
-      32: 'public/logo.png',
-      48: 'public/logo.png',
+      16: 'icons/icon-16.png',
+      32: 'icons/icon-32.png',
+      48: 'icons/icon-48.png',
+      128: 'icons/icon-128.png',
     },
     default_popup: 'src/popup/index.html',
     default_title: 'Local Translator',
@@ -41,13 +42,14 @@ export default defineManifest({
   ],
   web_accessible_resources: [
     {
-      resources: ['public/logo.png'],
+      resources: ['icons/icon-16.png', 'icons/icon-32.png', 'icons/icon-48.png', 'icons/icon-128.png'],
       matches: ['<all_urls>'],
     },
   ],
   options_page: 'src/options/index.html',
   permissions: [
     'storage',
+    'scripting',
     'tabs',
   ],
   host_permissions: ['<all_urls>'],

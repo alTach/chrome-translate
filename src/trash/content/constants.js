@@ -1,11 +1,12 @@
-import { PANEL_DEFAULTS } from '@/trash/app/constants.js'
+import { PANEL_DEFAULTS, SELECTION_TEXT_LIMIT } from '@/trash/app/constants.js'
+
+export { SELECTION_TEXT_LIMIT }
 
 export const ROOT_ID = 'local-translator-selection-root'
 export const OFFSET = 20
 export const TRIGGER_SIZE = 30
 export const VIEWPORT_EDGE_MARGIN = 8
 export const VIEWPORT_RESIZE_MARGIN = 16
-export const SELECTION_TEXT_LIMIT = 2000
 export const DEFAULT_TARGET_LANGUAGE = 'ru'
 export const DEFAULT_SOURCE_LANGUAGE = 'en'
 

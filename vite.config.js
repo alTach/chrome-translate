@@ -14,7 +14,11 @@ export default defineConfig({
     },
   },
   plugins: [
-    svelte(),
+    svelte({
+      compilerOptions: {
+        customElement: ({ filename }) => filename?.endsWith('SelectionTranslator.svelte') ?? false,
+      },
+    }),
     tailwindcss(),
     crx({ manifest }),
     zip({ outDir: 'release', outFileName: `crx-${name}-${version}.zip` }),

@@ -1,6 +1,7 @@
 export const PAGE_UI_MESSAGES = {
   triggerLabel: 'Перевести',
   panelTitle: 'Перевод',
+  favoriteLabel: 'Добавить в избранное',
   pinLabel: 'Закрепить',
   unpinLabel: 'Открепить',
   closeLabel: 'Закрыть',

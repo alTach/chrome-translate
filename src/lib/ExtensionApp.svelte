@@ -10,7 +10,12 @@
   import TranslatePage from '@/lib/pages/TranslatePage.svelte'
   import { buildMessages } from '@/lib/utils/messages.js'
   import pkg from '../../package.json'
-  import { FEEDBACK_EMAIL, INTERFACE_LANGUAGES, TARGET_LANGUAGES } from '@/shared/constants.js'
+  import {
+    FEEDBACK_EMAIL,
+    INTERFACE_LANGUAGES,
+    SELECTION_TEXT_LIMIT,
+    TARGET_LANGUAGES
+  } from '@/shared/constants.js'
   import { isLocalTranslationSupported, translateText } from '@/shared/translator.js'
   import {
     addHistoryEntry,
@@ -177,6 +182,65 @@
         feedbackStatusType = 'default'
       }
     }, 1800)
+  }
+
+  function readPageSelection() {
+    const activeElement = document.activeElement
+    const selectedElement = activeElement?.closest?.('input, textarea')
+
+    if (selectedElement) {
+      let start = null
+      let end = null
+
+      try {
+        start = selectedElement.selectionStart
+        end = selectedElement.selectionEnd
+      } catch {
+        start = null
+        end = null
+      }
+
+      if (start != null && end != null && start !== end) {
+        return selectedElement.value.substring(start, end).trim()
+      }
+    }
+
+    return window.getSelection?.().toString().trim() || ''
+  }
+
+  async function getActiveTabSelection() {
+    if (typeof chrome === 'undefined' || !chrome.tabs) {
+      return ''
+    }
+
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+
+    if (!tab?.id) {
+      return ''
+    }
+
+    if (chrome.scripting?.executeScript) {
+      try {
+        const [result] = await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          func: readPageSelection
+        })
+
+        if (result?.result?.trim()) {
+          return result.result.slice(0, SELECTION_TEXT_LIMIT)
+        }
+      } catch (error) {
+        console.debug('Failed to execute selection reader:', error)
+      }
+    }
+
+    try {
+      const response = await chrome.tabs.sendMessage(tab.id, { type: 'get-selection' })
+      return (response?.text || '').slice(0, SELECTION_TEXT_LIMIT)
+    } catch (error) {
+      console.debug('Failed to get selection from tab:', error)
+      return ''
+    }
   }
 
   function navigate(nextRoute) {
@@ -420,18 +484,7 @@
 
         let selectionText = ''
 
-        // Try to get fresh selection from active tab
-        if (typeof chrome !== 'undefined' && chrome.tabs) {
-          try {
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
-            if (tab?.id) {
-              const response = await chrome.tabs.sendMessage(tab.id, { type: 'get-selection' })
-              selectionText = response?.text || ''
-            }
-          } catch (error) {
-            console.debug('Failed to get selection from tab:', error)
-          }
-        }
+        selectionText = await getActiveTabSelection()
 
         // Fallback to last selection if no fresh selection or if it fails
         if (!selectionText) {
@@ -442,7 +495,7 @@
           sourceText = selectionText
 
           if (shouldPrefillSelection && shouldAutoTranslateSelection) {
-             void handleTranslate(selectionText)
+            void handleTranslate(selectionText)
           }
         }
       })()
