@@ -66,10 +66,7 @@ async function setLocalValue(key, value) {
 }
 
 export async function getSettings() {
-  const defaultSettings = {
-    ...DEFAULT_SETTINGS,
-    targetLanguage: getDefaultTargetLanguage()
-  }
+  const defaultSettings = DEFAULT_SETTINGS
 
   return {
     ...defaultSettings,
@@ -80,7 +77,6 @@ export async function getSettings() {
 export async function saveSettings(settings) {
   const nextSettings = {
     ...DEFAULT_SETTINGS,
-    targetLanguage: getDefaultTargetLanguage(),
     ...settings
   }
   await setLocalValue(STORAGE_KEYS.settings, nextSettings)

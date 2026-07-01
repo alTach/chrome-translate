@@ -12,10 +12,6 @@ export function countWords(text) {
   return normalized.split(/\s+/).filter(Boolean).length
 }
 
-export function setFormattedText(element, text) {
-  element.textContent = normalizeLineEndings(text)
-}
-
 const BLOCK_TAGS = new Set([
   'P',
   'DIV',
