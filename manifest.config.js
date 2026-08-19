@@ -24,6 +24,7 @@ export default defineManifest({
   },
   background: {
     service_worker: 'src/background/main.js',
+    type: 'module',
   },
   commands: {
     'invoke-translation': {
