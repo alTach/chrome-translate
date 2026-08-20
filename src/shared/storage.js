@@ -94,14 +94,30 @@ export async function addHistoryEntry(entry) {
     return await getHistory()
   }
 
+  const settings = await getSettings()
+  const limit = Math.min(99, Math.max(1, Number(settings?.historyLimit) || HISTORY_LIMIT))
   const history = await getHistory()
   const entryKey = getEntryKey(entry)
   const nextHistory = [entry, ...history.filter((item) => getEntryKey(item) !== entryKey)].slice(
     0,
-    HISTORY_LIMIT
+    limit
   )
   await setLocalValue(STORAGE_KEYS.history, nextHistory)
   return nextHistory
+}
+
+export async function saveHistoryLimit(limit) {
+  const normalized = Math.min(99, Math.max(1, Number(limit) || HISTORY_LIMIT))
+  const settings = await getSettings()
+  await saveSettings({ ...settings, historyLimit: normalized })
+
+  const history = await getHistory()
+  if (history.length > normalized) {
+    const trimmed = history.slice(0, normalized)
+    await setLocalValue(STORAGE_KEYS.history, trimmed)
+    return { limit: normalized, history: trimmed }
+  }
+  return { limit: normalized, history }
 }
 
 export async function getFavorites() {

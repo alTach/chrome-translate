@@ -48,7 +48,8 @@ export const DEFAULT_SETTINGS = {
   targetLanguage: getDefaultTargetLanguage(),
   interfaceLanguage: getDefaultTargetLanguage(),
   shortcutKey: 's',
-  translationEngine: 'native'
+  translationEngine: 'native',
+  historyLimit: 20
 }
 
 export function getLanguageLabel(code) {

@@ -30,6 +30,7 @@
     ensureFavorite,
     removeFavorite,
     saveFeedbackDraft,
+    saveHistoryLimit,
     savePopupSession,
     saveSettings,
   } from '@/shared/storage.js'
@@ -47,7 +48,7 @@
   let statusType = 'default'
   let feedbackStatusText = ''
   let feedbackStatusType = 'default'
-  let settings = { targetLanguage: 'en', interfaceLanguage: 'ru', shortcutKey: 's', translationEngine: 'native' }
+  let settings = { targetLanguage: 'en', interfaceLanguage: 'ru', shortcutKey: 's', translationEngine: 'native', historyLimit: 20 }
   let sourceText = ''
   let session = { sourceText: '', translatedText: '', targetLanguage: '', entryId: '' }
   let history = []
@@ -429,6 +430,12 @@
     await loadLabels()
   }
 
+  async function handleHistoryLimitChange(nextLimit) {
+    const result = await saveHistoryLimit(nextLimit)
+    settings = { ...settings, historyLimit: result.limit }
+    history = result.history
+  }
+
   async function persistFeedbackDraft() {
     await saveFeedbackDraft(feedbackDraft)
   }
@@ -555,7 +562,8 @@
           {labels}
           items={history}
           emptyText={labels.historyEmpty}
-          noticeText={labels.historyLimitNotice}
+          limit={settings.historyLimit || 20}
+          onLimitChange={handleHistoryLimitChange}
           {favoriteKeys}
           onOpen={openEntry}
           onToggleFavorite={ensureFavoriteEntry}

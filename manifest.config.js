@@ -23,7 +23,7 @@ export default defineManifest({
     default_title: 'Local Translator',
   },
   background: {
-    service_worker: 'src/background/main.js',
+    service_worker: 'src/background/background.js',
     type: 'module',
   },
   commands: {
