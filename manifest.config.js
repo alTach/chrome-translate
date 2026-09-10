@@ -37,6 +37,9 @@ export default defineManifest({
   content_scripts: [
     {
       js: ['src/content/main.js'],
+      all_frames: true,
+      match_about_blank: true,
+      match_origin_as_fallback: true,
       matches: ['<all_urls>'],
       run_at: 'document_idle',
     },

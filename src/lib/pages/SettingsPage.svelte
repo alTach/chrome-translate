@@ -1,28 +1,6 @@
 <script>
   import LanguageSelect from '@/lib/components/LanguageSelect.svelte'
 
-  let shortcutFocused = false
-
-  function normalizeShortcutKey(value) {
-    if (typeof value === 'string' && /^[a-z]$/i.test(value)) {
-      return value.toLowerCase()
-    }
-
-    return ''
-  }
-
-  function handleShortcutKeydown(event) {
-    const nextKey = normalizeShortcutKey(event.key)
-
-    if (!nextKey) {
-      return
-    }
-
-    event.preventDefault()
-    settings.shortcutKey = nextKey
-    onSettingsChange()
-  }
-
   export let labels
   export let settings
   export let targetLanguages = []
@@ -74,22 +52,11 @@
 
   <div class="app-field">
     <span class="app-label">{labels.shortcut}</span>
-    <div
-      class="shortcut-button"
-      type="button"
-      on:focus={() => {
-        shortcutFocused = true
-      }}
-      on:blur={() => {
-        shortcutFocused = false
-      }}
-      on:keydown={handleShortcutKeydown}
-    >
+    <div class="shortcut-button">
       <span>Alt + Shift +</span>
-      <button class:shortcut-key--active={shortcutFocused} class="shortcut-key">
-        {(settings.shortcutKey || 's').toUpperCase()}
-      </button>
+      <span class="shortcut-key">S</span>
     </div>
+    <span class="shortcut-hint">{labels.shortcutHint}</span>
   </div>
 
   {#if showFeedbackLink}

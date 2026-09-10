@@ -33,7 +33,7 @@ export const UI_MESSAGES = {
   feedbackMessage: 'Сообщение',
   feedbackEmail: 'Почта',
   saveSuccess: 'Сохранено.',
-  shortcutHint: 'Нажмите клавишу, пока блок в фокусе',
+  shortcutHint: 'Изменить сочетание можно на странице chrome://extensions/shortcuts',
   noSubject: 'Без темы',
   emptyMessage: 'Сообщение пока пустое.',
   feedbackPageTitle: 'Обратная связь',
