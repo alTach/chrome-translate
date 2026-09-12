@@ -373,6 +373,8 @@
     height: 16px;
     cursor: nwse-resize;
     pointer-events: auto;
+    border: 0;
+    background: none;
   }
 
   .resize-handle::before {

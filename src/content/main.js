@@ -1,18 +1,16 @@
-import './SelectionTranslator.svelte'
+import { createSelectionTranslatorUi } from './panel.js'
 import { TARGET_LANGUAGES, getLanguageLabel } from '@/shared/constants.js'
 import {
   ensureFavorite,
   getSettings,
   saveLastSelection,
-  savePanelPrefs,
-  setPopupPrefillSelection
+  savePanelPrefs
 } from '@/shared/storage.js'
 import {
   detectSourceLanguage,
   isLocalTranslationSupported,
   translateTextPreservingFormat
 } from '@/shared/translator.js'
-import { languagesDiffer } from '@/trash/language.js'
 import { normalizeLineEndings } from '@/trash/text.js'
 import {
   DEFAULT_SOURCE_LANGUAGE,
@@ -68,7 +66,7 @@ function syncUi() {
     return
   }
 
-  Object.assign(translatorUi, {
+  translatorUi.update({
     messages: PAGE_UI_MESSAGES,
     languages: TARGET_LANGUAGES,
     triggerVisible,
@@ -174,7 +172,7 @@ function setStatus(message = '', type = 'default') {
 }
 
 function createUi() {
-  translatorUi = document.createElement('local-translator-panel')
+  translatorUi = createSelectionTranslatorUi()
   translatorUi.id = ROOT_ID
   ;(document.body || document.documentElement).append(translatorUi)
 
@@ -219,11 +217,6 @@ async function loadTargetLanguage() {
   const settings = await getSettings()
   currentTargetLanguage = settings.targetLanguage || DEFAULT_TARGET_LANGUAGE
   syncUi()
-}
-
-async function shouldShowTrigger(text, targetLanguage) {
-  const detectedLanguage = await detectSourceLanguage(text).catch(() => DEFAULT_SOURCE_LANGUAGE)
-  return languagesDiffer(detectedLanguage, targetLanguage)
 }
 
 async function addCurrentFavorite() {
@@ -354,17 +347,6 @@ async function handleSelection(anchorOverride = null) {
     return
   }
 
-  const settings = await getSettings()
-  const targetLanguage = settings.targetLanguage || DEFAULT_TARGET_LANGUAGE
-
-  if (!(await shouldShowTrigger(data.text, targetLanguage))) {
-    if (!panelOpen) {
-      clearUi()
-    }
-
-    return
-  }
-
   await applySelectionData(data, anchorOverride)
 
   if (panelOpen) {
@@ -457,8 +439,25 @@ function handleViewportChange() {
   )
 }
 
+function scheduleSelectionCheck(anchorOverride = null) {
+  window.setTimeout(() => {
+    void handleSelection(anchorOverride)
+  }, 0)
+}
+
+function isInvokeShortcut(event) {
+  return (
+    event.code === 'KeyS' &&
+    event.altKey &&
+    event.shiftKey &&
+    !event.ctrlKey &&
+    !event.metaKey
+  )
+}
+
 function bindPageEvents() {
-  const lastPointer = { x: 0, y: 0 }
+  let lastPointer = null
+  let selectionChangeTimer = null
 
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message?.type === 'get-selection') {
@@ -468,8 +467,7 @@ function bindPageEvents() {
     }
 
     if (message?.type === 'invoke-translation') {
-      void setPopupPrefillSelection(true)
-      void openTranslationFromSelection({ x: lastPointer.x, y: lastPointer.y })
+      void openTranslationFromSelection(lastPointer)
     }
   })
 
@@ -480,20 +478,61 @@ function bindPageEvents() {
         return
       }
 
-      lastPointer.x = event.clientX
-      lastPointer.y = event.clientY
-      window.setTimeout(() => {
-        void handleSelection({ x: event.clientX, y: event.clientY })
-      }, 0)
+      lastPointer = { x: event.clientX, y: event.clientY }
+      scheduleSelectionCheck(lastPointer)
+    },
+    true
+  )
+
+  document.addEventListener(
+    'pointerup',
+    (event) => {
+      if (isExtensionUiEvent(event)) {
+        return
+      }
+
+      lastPointer = { x: event.clientX, y: event.clientY }
+      scheduleSelectionCheck(lastPointer)
+    },
+    true
+  )
+
+  document.addEventListener(
+    'touchend',
+    () => {
+      scheduleSelectionCheck(lastPointer)
+    },
+    true
+  )
+
+  document.addEventListener('selectionchange', () => {
+    if (selectionChangeTimer) {
+      window.clearTimeout(selectionChangeTimer)
+    }
+
+    selectionChangeTimer = window.setTimeout(() => {
+      selectionChangeTimer = null
+      void handleSelection(lastPointer)
+    }, 120)
+  })
+
+  document.addEventListener(
+    'keydown',
+    (event) => {
+      if (!isInvokeShortcut(event)) {
+        return
+      }
+
+      event.preventDefault()
+      event.stopPropagation()
+      void openTranslationFromSelection(lastPointer)
     },
     true
   )
 
   document.addEventListener('keyup', (event) => {
     if (event.key.startsWith('Arrow') || event.key === 'Shift') {
-      window.setTimeout(() => {
-        void handleSelection({ x: lastPointer.x, y: lastPointer.y })
-      }, 0)
+      scheduleSelectionCheck(lastPointer)
     }
   })
 
